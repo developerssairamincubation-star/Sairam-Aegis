@@ -9,7 +9,7 @@ Full-stack RAG application split into:
 ## Local Run Order
 
 1. Configure Supabase and apply SQL migrations from `Aegis_backend/supabase/migrations`.
-2. Put markdown files inside `Aegis_backend/Sairam knowledge base`.
+2. Put markdown files inside `Aegis_backend/Sairam_knowledge_base`.
 3. Start Ollama and make sure your model is available:
 
 ```bash
@@ -33,7 +33,7 @@ LOCAL_LLM_MODEL=llama3.1:8b
 LOCAL_LLM_API_KEY=ollama
 
 RAG_INGEST_ON_STARTUP=true
-KNOWLEDGE_BASE_DIR="./Sairam knowledge base"
+KNOWLEDGE_BASE_DIR="./Sairam_knowledge_base"
 INGESTION_MANIFEST_PATH="./storage/ingestion_manifest.json"
 
 EMBEDDING_MODEL=BAAI/bge-m3

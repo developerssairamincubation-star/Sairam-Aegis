@@ -13,6 +13,6 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
-COPY "Sairam knowledge base" "./Sairam knowledge base"
+COPY "Sairam_knowledge_base" "./Sairam_knowledge_base"
 
 CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}

@@ -17,7 +17,7 @@ def base_settings(**overrides):
         "local_llm_model": "llama3.1:8b",
         "local_llm_api_key": "ollama",
         "rag_ingest_on_startup": True,
-        "knowledge_base_dir": "./Sairam knowledge base",
+        "knowledge_base_dir": "./Sairam_knowledge_base",
         "ingestion_manifest_path": "./storage/ingestion_manifest.json",
         "embedding_model": "BAAI/bge-m3",
         "embedding_dimension": 1024,

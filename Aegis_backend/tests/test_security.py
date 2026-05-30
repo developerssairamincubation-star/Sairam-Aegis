@@ -18,7 +18,7 @@ def make_settings() -> Settings:
         embedding_model="BAAI/bge-m3",
         embedding_dimension=1024,
         rag_ingest_on_startup=True,
-        knowledge_base_dir="./Sairam knowledge base",
+        knowledge_base_dir="./Sairam_knowledge_base",
         ingestion_manifest_path="./storage/ingestion_manifest.json",
         supabase_url="https://example.supabase.co",
         supabase_publishable_key="sb_publishable_test",

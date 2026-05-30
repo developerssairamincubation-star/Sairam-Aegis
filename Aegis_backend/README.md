@@ -17,7 +17,7 @@ Fill in Supabase credentials in `.env`, then run migrations from `supabase/migra
 Place markdown files in:
 
 ```text
-Sairam knowledge base/
+Sairam_knowledge_base/
 ```
 
 When `RAG_INGEST_ON_STARTUP=true`, the API ingests changed markdown files into Supabase pgvector on startup.
