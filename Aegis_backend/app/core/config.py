@@ -1,38 +1,54 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
-from pydantic import Field
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    app_name: str = "Aegis API"
-    app_env: str = "development"
-    frontend_origin: str = "http://localhost:3000"
+    app_name: str
+    app_env: str
+    frontend_origin: str
 
-    lm_studio_base_url: str = "http://localhost:1234/v1"
-    lm_studio_model: str = "qwen3.5-4b"
-    lm_studio_api_key: str = "lm-studio"
+    llm_provider: Literal["openai_compatible", "runner"]
 
-    embedding_model: str = "BAAI/bge-m3"
-    knowledge_base_dir: Path = Field(default=Path("./Sairam knowledge base"))
-    chroma_persist_dir: Path = Field(default=Path("./storage/chroma"))
-    ingestion_manifest_path: Path = Field(default=Path("./storage/ingestion_manifest.json"))
+    local_llm_base_url: str
+    local_llm_model: str
+    local_llm_api_key: str
 
-    supabase_url: str | None = None
-    supabase_anon_key: str | None = None
-    supabase_service_role_key: str | None = None
-    supabase_jwt_secret: str | None = None
+    runner_shared_secret: str | None = None
+    runner_request_timeout_seconds: int
+
+    embedding_model: str
+    embedding_dimension: int
+    rag_ingest_on_startup: bool
+    knowledge_base_dir: Path
+    ingestion_manifest_path: Path | None = None
+
+    supabase_url: str
+    supabase_publishable_key: str
+    supabase_secret_key: str
+
+    @model_validator(mode="after")
+    def validate_provider_config(self) -> "Settings":
+        if self.llm_provider == "runner" and not self.runner_shared_secret:
+            raise ValueError("RUNNER_SHARED_SECRET is required when LLM_PROVIDER=runner.")
+        if self.rag_ingest_on_startup and self.ingestion_manifest_path is None:
+            raise ValueError(
+                "INGESTION_MANIFEST_PATH is required when RAG_INGEST_ON_STARTUP=true."
+            )
+        return self
 
     @property
     def auth_configured(self) -> bool:
-        return bool(self.supabase_url and (self.supabase_jwt_secret or self.supabase_anon_key))
+        return bool(self.supabase_url and self.supabase_publishable_key)
 
     @property
     def db_configured(self) -> bool:
-        return bool(self.supabase_url and self.supabase_service_role_key)
+        return bool(self.supabase_url and self.supabase_secret_key)
 
 
 @lru_cache

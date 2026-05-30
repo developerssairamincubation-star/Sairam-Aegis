@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 
 from fastapi import APIRouter, status
 from fastapi.responses import StreamingResponse
@@ -52,6 +53,9 @@ async def stream_message(
         repo.update_conversation_title(user_id, conversation_id, _title_from_content(payload.content))
 
     async def event_stream():
+        stream_started_at = time.perf_counter()
+        first_token_at: float | None = None
+        token_count = 0
         answer_parts: list[str] = []
         sources: list[dict] = []
         try:
@@ -60,12 +64,25 @@ async def stream_message(
                     sources = item["data"]
                     yield _sse("sources", sources)
                 elif item["type"] == "token":
+                    token_count += 1
+                    if first_token_at is None:
+                        first_token_at = time.perf_counter()
+                        logger.info(
+                            "First token user_id=%s conversation_id=%s latency_ms=%s",
+                            user_id,
+                            conversation_id,
+                            round((first_token_at - stream_started_at) * 1000),
+                        )
                     answer_parts.append(item["data"])
                     yield _sse("token", item["data"])
             answer = "".join(answer_parts).strip()
             repo.create_message(user_id, conversation_id, "assistant", answer, sources=sources)
             logger.info(
-                "Assistant message stored user_id=%s conversation_id=%s", user_id, conversation_id
+                "Assistant message stored user_id=%s conversation_id=%s duration_ms=%s token_count=%s",
+                user_id,
+                conversation_id,
+                round((time.perf_counter() - stream_started_at) * 1000),
+                token_count,
             )
             yield _sse("done", {"conversation_id": conversation_id})
         except Exception as exc:

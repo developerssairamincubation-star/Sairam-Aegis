@@ -9,6 +9,10 @@ from supabase import Client, create_client
 from app.core.config import get_settings
 
 
+def _vector_literal(values: list[float]) -> str:
+    return "[" + ",".join(str(value) for value in values) + "]"
+
+
 class SupabaseRepository:
     def __init__(self) -> None:
         settings = get_settings()
@@ -16,7 +20,7 @@ class SupabaseRepository:
             self.client: Client | None = None
             return
 
-        self.client = create_client(settings.supabase_url, settings.supabase_service_role_key)
+        self.client = create_client(settings.supabase_url, settings.supabase_secret_key)
 
     def _table(self, table: str):
         if self.client is None:
@@ -151,6 +155,84 @@ class SupabaseRepository:
                 "status": status_value,
             }
         ).execute()
+
+    def delete_rag_source(self, source: str) -> None:
+        documents = (
+            self._table("rag_documents")
+            .select("id")
+            .eq("source", source)
+            .execute()
+            .data
+            or []
+        )
+        for document in documents:
+            self._table("rag_chunks").delete().eq("document_id", document["id"]).execute()
+        self._table("rag_documents").delete().eq("source", source).execute()
+
+    def upsert_rag_document(self, source: str, title: str | None, sha256: str | None) -> dict[str, Any]:
+        payload = {
+            "source": source,
+            "title": title,
+            "sha256": sha256,
+        }
+        result = (
+            self._table("rag_documents")
+            .upsert(payload, on_conflict="source")
+            .execute()
+            .data
+            or []
+        )
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Unable to upsert RAG document.",
+            )
+        return result[0]
+
+    def replace_rag_chunks(self, document_id: str, chunks: list[dict[str, Any]]) -> int:
+        self._table("rag_chunks").delete().eq("document_id", document_id).execute()
+        if not chunks:
+            return 0
+        payload = [
+            {
+                "document_id": document_id,
+                "chunk_index": chunk["chunk_index"],
+                "content": chunk["content"],
+                "metadata": chunk.get("metadata") or {},
+                "embedding": _vector_literal(chunk["embedding"]),
+            }
+            for chunk in chunks
+        ]
+        self._table("rag_chunks").insert(payload).execute()
+        return len(payload)
+
+    def match_rag_chunks(
+        self,
+        query_embedding: list[float],
+        match_count: int,
+    ) -> list[dict[str, Any]]:
+        if self.client is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Supabase database is not configured.",
+            )
+        return (
+            self.client.rpc(
+                "match_rag_chunks",
+                {
+                    "query_embedding": _vector_literal(query_embedding),
+                    "match_count": match_count,
+                },
+            )
+            .execute()
+            .data
+            or []
+        )
+
+    def rag_counts(self) -> tuple[int, int]:
+        documents = self._table("rag_documents").select("id", count="exact").execute()
+        chunks = self._table("rag_chunks").select("id", count="exact").execute()
+        return documents.count or 0, chunks.count or 0
 
     def create_local_user(self, email: str, password: str) -> dict[str, Any]:
         existing = (

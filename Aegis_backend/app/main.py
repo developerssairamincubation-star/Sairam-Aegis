@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, chats, projects, rag
+from app.api import auth, chats, projects, rag, runners
 from app.core.config import get_settings
 from app.db.supabase import get_repository
 from app.rag.service import get_rag_service
@@ -11,13 +11,14 @@ from app.rag.service import get_rag_service
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    rag_service = get_rag_service()
-    ingestion = rag_service.ingest_on_startup()
-    get_repository().record_ingestion_run(
-        indexed_files=ingestion.indexed_files,
-        indexed_chunks=ingestion.indexed_chunks,
-        status_value="completed",
-    )
+    if settings.rag_ingest_on_startup:
+        rag_service = get_rag_service()
+        ingestion = rag_service.ingest_on_startup()
+        get_repository().record_ingestion_run(
+            indexed_files=ingestion.indexed_files,
+            indexed_chunks=ingestion.indexed_chunks,
+            status_value="completed",
+        )
     yield
 
 
@@ -42,3 +43,4 @@ app.include_router(projects.router)
 app.include_router(chats.router)
 app.include_router(rag.router)
 app.include_router(auth.router)
+app.include_router(runners.router)

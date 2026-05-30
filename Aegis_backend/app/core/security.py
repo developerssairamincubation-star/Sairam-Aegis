@@ -1,7 +1,6 @@
 from typing import Annotated
 
 import httpx
-import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
@@ -12,7 +11,7 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 
 async def _verify_with_supabase_user_endpoint(token: str, settings: Settings) -> AuthUser:
-    if not settings.supabase_url or not settings.supabase_anon_key:
+    if not settings.supabase_url or not settings.supabase_publishable_key:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Supabase auth is not configured.",
@@ -22,7 +21,7 @@ async def _verify_with_supabase_user_endpoint(token: str, settings: Settings) ->
         response = await client.get(
             f"{settings.supabase_url.rstrip('/')}/auth/v1/user",
             headers={
-                "apikey": settings.supabase_anon_key,
+                "apikey": settings.supabase_publishable_key,
                 "Authorization": f"Bearer {token}",
             },
         )
@@ -46,22 +45,4 @@ async def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing session.")
 
     token = credentials.credentials
-    if settings.supabase_jwt_secret:
-        try:
-            payload = jwt.decode(
-                token,
-                settings.supabase_jwt_secret,
-                algorithms=["HS256"],
-                audience="authenticated",
-                options={"verify_aud": False},
-            )
-        except jwt.PyJWTError as exc:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session.") from exc
-
-        user_id = payload.get("sub")
-        if not user_id:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session.")
-
-        return AuthUser(id=user_id, email=payload.get("email"), raw=payload)
-
     return await _verify_with_supabase_user_endpoint(token, settings)

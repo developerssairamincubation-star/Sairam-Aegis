@@ -1,7 +1,11 @@
 import { Conversation, Message, Project, Source } from "@/types";
 import { getStoredUserId } from "@/lib/localAuth";
+import { requiredEnv } from "@/lib/env";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+const API_BASE_URL = requiredEnv(
+  "NEXT_PUBLIC_API_BASE_URL",
+  process.env.NEXT_PUBLIC_API_BASE_URL,
+);
 const PREVIEW_MODE = process.env.NEXT_PUBLIC_AUTH_PREVIEW_MODE === "true";
 
 function requireUserId() {

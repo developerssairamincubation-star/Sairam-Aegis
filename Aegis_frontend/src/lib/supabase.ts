@@ -1,13 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
+import { requiredEnv } from "@/lib/env";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-if (!supabaseUrl || !supabaseKey) {
-  console.warn("Missing Supabase frontend environment variables.");
-}
-
-export const supabase = createClient(
-  supabaseUrl || "http://localhost:54321",
-  supabaseKey || "missing-supabase-key",
+const supabaseUrl = requiredEnv("NEXT_PUBLIC_SUPABASE_URL", process.env.NEXT_PUBLIC_SUPABASE_URL);
+const supabaseKey = requiredEnv(
+  "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
 );
+
+export const supabase = createClient(supabaseUrl, supabaseKey);

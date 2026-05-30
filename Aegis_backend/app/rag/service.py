@@ -1,14 +1,16 @@
 from functools import lru_cache
 import logging
+import time
 from typing import Any
 
-from langchain_chroma import Chroma
-from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_openai import ChatOpenAI
 
 from app.core.config import Settings, get_settings
+from app.db.supabase import get_repository
 from app.rag.ingestion import IngestionResult, MarkdownIngestor
+from app.rag.llm import LLMClient, build_llm_client
+from app.rag.runner_manager import runner_manager
+from app.rag.vector_store import SupabaseVectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -36,22 +38,14 @@ class RagService:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self.embeddings = HuggingFaceEmbeddings(model_name=settings.embedding_model)
-        settings.chroma_persist_dir.mkdir(parents=True, exist_ok=True)
-        self.vector_store = Chroma(
-            collection_name="sairam_knowledge_base",
-            embedding_function=self.embeddings,
-            persist_directory=str(settings.chroma_persist_dir),
-        )
-        self.llm = ChatOpenAI(
-            model=settings.lm_studio_model,
-            api_key=settings.lm_studio_api_key,
-            base_url=settings.lm_studio_base_url,
-            temperature=0.2,
-            streaming=True,
-        )
+        self.vector_store = SupabaseVectorStore(repository=get_repository(), embeddings=self.embeddings)
+        self.llm: LLMClient = build_llm_client(settings, runner_manager)
         self.last_ingestion: IngestionResult | None = None
 
     def ingest_on_startup(self) -> IngestionResult:
+        if self.settings.ingestion_manifest_path is None:
+            raise RuntimeError("INGESTION_MANIFEST_PATH is required for startup ingestion.")
+
         ingestor = MarkdownIngestor(
             knowledge_base_dir=self.settings.knowledge_base_dir,
             manifest_path=self.settings.ingestion_manifest_path,
@@ -67,31 +61,35 @@ class RagService:
 
     def status(self) -> dict[str, Any]:
         manifest_path = self.settings.ingestion_manifest_path
-        indexed_files = 0
         last_ingested_at = None
-        if manifest_path.exists():
+        if manifest_path and manifest_path.exists():
             import json
 
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            indexed_files = len(manifest.get("files", {}))
             last_ingested_at = manifest.get("last_ingested_at")
 
-        chunk_count = 0
-        if hasattr(self.vector_store, "_collection"):
-            chunk_count = self.vector_store._collection.count()
+        indexed_files_from_store, chunk_count = get_repository().rag_counts()
 
         return {
             "knowledge_base_dir": str(self.settings.knowledge_base_dir),
+            "vector_store": "supabase_pgvector",
+            "llm_provider": self.settings.llm_provider,
             "embedding_model": self.settings.embedding_model,
-            "persist_dir": str(self.settings.chroma_persist_dir),
-            "indexed_files": indexed_files,
+            "indexed_files": indexed_files_from_store,
             "indexed_chunks": chunk_count,
             "last_ingested_at": last_ingested_at,
+            "runner": runner_manager.status(),
         }
 
     def retrieve(self, question: str, k: int = 5) -> tuple[str, list[dict[str, Any]]]:
+        started_at = time.perf_counter()
         docs = self.vector_store.similarity_search(question, k=k)
-        logger.info("Retrieved context k=%s hits=%s", k, len(docs))
+        logger.info(
+            "Retrieved context provider=supabase_pgvector k=%s hits=%s latency_ms=%s",
+            k,
+            len(docs),
+            round((time.perf_counter() - started_at) * 1000),
+        )
         context_parts: list[str] = []
         sources: list[dict[str, Any]] = []
         for doc in docs:
@@ -115,19 +113,19 @@ class RagService:
             return
         context, sources = self.retrieve(question)
         messages = [
-            SystemMessage(content=SYSTEM_PROMPT),
-            HumanMessage(
-                content=(
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": (
                     "Knowledge-base context:\n"
                     f"{context or 'No relevant context was found.'}\n\n"
                     f"User question:\n{question}"
-                )
-            ),
+                ),
+            },
         ]
 
         yield {"type": "sources", "data": sources}
-        async for chunk in self.llm.astream(messages):
-            token = chunk.content or ""
+        async for token in self.llm.stream_chat(messages):
             if token:
                 yield {"type": "token", "data": token}
         logger.info("Stream answer done")

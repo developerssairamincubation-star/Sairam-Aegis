@@ -3,9 +3,13 @@
 import { Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
+import { requiredEnv } from "@/lib/env";
 import { getStoredUserId, setStoredUserId } from "@/lib/localAuth";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+const API_BASE_URL = requiredEnv(
+  "NEXT_PUBLIC_API_BASE_URL",
+  process.env.NEXT_PUBLIC_API_BASE_URL,
+);
 
 export default function LoginPage() {
   const router = useRouter();
