@@ -430,22 +430,15 @@ a {
 }
 
 .composer-actions {
-  justify-content: space-between;
+  justify-content: flex-end;
 }
 
-.attach-button,
 .send-button {
   width: 28px;
   height: 28px;
   display: grid;
   place-items: center;
   border-radius: 6px;
-}
-
-.attach-button {
-  border: 0;
-  background: transparent;
-  color: var(--muted);
 }
 
 .send-button:disabled {

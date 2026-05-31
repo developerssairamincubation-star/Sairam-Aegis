@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Paperclip } from "lucide-react";
+import { ArrowUp } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { createChat, deleteChat, listChats, listMessages, streamMessage } from "@/lib/api";
@@ -182,9 +182,6 @@ export default function ChatPage() {
             rows={3}
           />
           <div className="composer-actions">
-            <button className="attach-button" type="button" aria-label="Attach file" disabled>
-              <Paperclip size={20} />
-            </button>
             <button className="send-button" type="submit" aria-label="Send message" disabled={!draft.trim()}>
               <ArrowUp size={18} />
             </button>
