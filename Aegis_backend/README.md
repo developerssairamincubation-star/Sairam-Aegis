@@ -71,3 +71,54 @@ wss://your-api-domain/runners/connect
 ```
 
 Check `/rag/status` after startup to confirm Supabase chunk counts and runner connection state.
+
+## Free Local Mac + ngrok Deployment
+
+Use this mode when the frontend is on Vercel, but the backend and Ollama run on your Mac:
+
+```text
+Vercel frontend
+  -> ngrok HTTPS dev domain
+  -> Mac FastAPI backend on http://127.0.0.1:8000
+  -> Mac Ollama on http://localhost:11434/v1
+  -> Supabase pgvector
+```
+
+In this mode, keep `LLM_PROVIDER=openai_compatible`. The runner is not used because the
+backend can call Ollama through Mac-local `localhost`.
+
+Backend `.env` values:
+
+```bash
+APP_ENV=production
+FRONTEND_ORIGIN=https://your-vercel-app.vercel.app
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxx
+SUPABASE_SECRET_KEY=sb_secret_xxx
+LLM_PROVIDER=openai_compatible
+LOCAL_LLM_BASE_URL=http://localhost:11434/v1
+LOCAL_LLM_MODEL=llama3.1:8b
+LOCAL_LLM_API_KEY=ollama
+RAG_INGEST_ON_STARTUP=false
+KNOWLEDGE_BASE_DIR="./Sairam_knowledge_base"
+INGESTION_MANIFEST_PATH="./storage/ingestion_manifest.json"
+EMBEDDING_MODEL=BAAI/bge-m3
+EMBEDDING_DIMENSION=1024
+RUNNER_REQUEST_TIMEOUT_SECONDS=180
+```
+
+Start the backend bound to loopback only:
+
+```bash
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+Expose it with ngrok:
+
+```bash
+ngrok http 8000
+```
+
+Set the Vercel frontend `NEXT_PUBLIC_API_BASE_URL` to the assigned
+`https://...ngrok-free.app` URL. Do not put `localhost` in Vercel env; `localhost`
+there would refer to the user's browser or Vercel runtime, not your Mac.
